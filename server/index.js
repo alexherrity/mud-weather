@@ -2,6 +2,13 @@ const express = require('express');
 const OpenAI = require('openai');
 require('dotenv').config();
 
+// Add extensive debugging
+console.log('Current directory:', process.cwd());
+console.log('Env file loaded:', require('dotenv').config());
+console.log('All env variables:', process.env);
+console.log('API Key exists:', !!process.env.OPENAI_API_KEY);
+console.log('API Key length:', process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.length : 0);
+
 const app = express();
 
 // Middleware to parse JSON and serve static files
@@ -10,7 +17,7 @@ app.use(express.static('public'));
 
 // Set up OpenAI
 const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
+    apiKey: process.env.OPENAI_API_KEY
 });
 
 async function generateChatResponse(message, isOperatorMode) {

@@ -177,6 +177,9 @@
     </style>
 </head>
 <body>
+    <audio id="backgroundMusic" loop>
+        <source src="/sounds/ambient.mp3" type="audio/mpeg">
+    </audio>
     <div id="terminal">
         <div id="output"></div>
         <div class="input-line">
@@ -186,10 +189,9 @@
     </div>
 
     <script>
-        // Add this at the top of your script section
-        const backgroundMusic = new Audio('/sounds/ambient.mp3');
-        backgroundMusic.loop = true;
-        backgroundMusic.volume = 0.06; // Reduced to ~6% volume
+        // Audio setup
+        const backgroundMusic = document.getElementById('backgroundMusic');
+        backgroundMusic.volume = 0.025;  // Reduced to 2.5% (75% reduction from 0.1)
 
         let isOperatorMode = false;
 
@@ -263,14 +265,9 @@
                     if (className) char.className = className;
                     this.output.appendChild(char);
                     this.output.scrollTop = this.output.scrollHeight;
-                    await delay(100); // Adjust typing speed here
+                    await delay(100);
                 }
-                this.print('', className); // New line
-            },
-
-            toggleOperatorMode() {
-                isOperatorMode = !isOperatorMode;
-                document.documentElement.setAttribute('data-theme', isOperatorMode ? 'inverted' : 'default');
+                this.print('', className);
             },
 
             async handleCommand(command) {
@@ -293,7 +290,6 @@
                     this.toggleOperatorMode();
                     await new Promise(resolve => setTimeout(resolve, 500));
                     
-                    // Updated prompt for Gary's initial greeting
                     const greeting = await this.callChatGPT("Someone is interrupting your work and needs help. Respond with an annoyed initial greeting");
                     this.print(greeting.toLowerCase(), 'system');
                     return;
@@ -405,9 +401,18 @@
 
                 const data = await response.json();
                 return data.response;
+            },
+
+            toggleOperatorMode() {
+                isOperatorMode = !isOperatorMode;
+                document.documentElement.setAttribute('data-theme', isOperatorMode ? 'inverted' : 'default');
+                
+                // Simply mute/unmute the audio
+                backgroundMusic.volume = isOperatorMode ? 0 : 0.025;
             }
         };
 
+        // Initialize terminal
         terminal.init();
     </script>
 </body>
