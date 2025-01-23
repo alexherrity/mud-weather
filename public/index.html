@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TWC-MUD v1.4.2 (c) 199X</title>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --terminal-bg: #000420;
+            --terminal-text: #00ffcc;
+            --terminal-prompt: #4488ff;
+            --terminal-error: #ff4444;
+            --terminal-success: #00ccff;
+            --terminal-system: #ffbb33;
+        }
+
+        /* Restore inverted theme */
+        :root[data-theme="inverted"] {
+            --terminal-bg: #fffddf;
+            --terminal-text: #ff0033;
+            --terminal-prompt: #bb7700;
+            --terminal-error: #00bbbb;
+            --terminal-success: #ff3300;
+            --terminal-system: #0044cc;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: var(--terminal-bg);
+            color: var(--terminal-text);
+            font-family: 'VT323', monospace;
+            font-size: 20px;
+            line-height: 1.2;
+            padding: 20px;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* CRT screen effect */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(
+                rgba(18, 16, 36, 0) 50%,
+                rgba(0, 4, 32, 0.25) 50%
+            );
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        /* Weather radar glow */
+        body::after {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(
+                circle at center,
+                rgba(0, 255, 204, 0.1) 0%,
+                rgba(0, 4, 32, 0.3) 100%
+            );
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        #terminal {
+            max-width: 800px;
+            margin: 0 auto;
+            height: calc(100vh - 40px);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            z-index: 3;
+        }
+
+        #output {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 10px;
+            white-space: pre-wrap;
+        }
+
+        #output::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #output::-webkit-scrollbar-track {
+            background: #000;
+        }
+
+        #output::-webkit-scrollbar-thumb {
+            background: var(--terminal-text);
+        }
+
+        .input-line {
+            display: flex;
+            padding: 10px;
+            border-top: 1px solid var(--terminal-text);
+        }
+
+        .prompt {
+            color: var(--terminal-prompt);
+            margin-right: 10px;
+        }
+
+        #input {
+            background: transparent;
+            border: none;
+            color: var(--terminal-text);
+            font-family: 'VT323', monospace;
+            font-size: 20px;
+            flex-grow: 1;
+            outline: none;
+        }
+
+        .blink {
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        .error { color: var(--terminal-error); }
+        .system { color: var(--terminal-system); }
+        .success { color: var(--terminal-success); }
+
+        /* Add these mobile-specific styles */
+        @media (max-width: 768px) {
+            body {
+                font-size: 24px;
+                padding: 10px;
+            }
+
+            #terminal {
+                height: calc(100vh - 20px);
+                padding-bottom: 60px;
+            }
+
+            .input-line {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                background: var(--terminal-bg);
+                padding: 10px;
+                border-top: 1px solid var(--terminal-text);
+            }
+
+            #output {
+                margin-bottom: 60px;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            #input {
+                font-size: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="terminal">
+        <div id="output"></div>
+        <div class="input-line">
+            <span class="prompt">&gt;</span>
+            <input type="text" id="input" autofocus spellcheck="false">
+        </div>
+    </div>
+
+    <script>
+        // Add this at the top of your script section
+        const backgroundMusic = new Audio('/sounds/ambient.mp3');
+        backgroundMusic.loop = true;
+        backgroundMusic.volume = 0.06; // Reduced to ~6% volume
+
+        let isOperatorMode = false;
+
+        const terminal = {
+            output: document.getElementById('output'),
+            input: document.getElementById('input'),
+            
+            init() {
+                this.printWelcome();
+                
+                // Try to play music on page load and any user interaction
+                const playAttempt = () => {
+                    backgroundMusic.play().then(() => {
+                        // Remove listeners once successfully playing
+                        ['click', 'keydown', 'touchstart'].forEach(event => {
+                            document.removeEventListener(event, playAttempt);
+                        });
+                    }).catch(console.error);
+                };
+
+                // Try immediately
+                playAttempt();
+                
+                // Add listeners for various user interactions
+                ['click', 'keydown', 'touchstart'].forEach(event => {
+                    document.addEventListener(event, playAttempt);
+                });
+
+                this.input.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        this.handleCommand(this.input.value);
+                        this.input.value = '';
+                    }
+                });
+            },
+
+            printWelcome() {
+                const welcome = [
+                    "=== TWC-MUD v1.4.2 (c) 1995 The Weather Channel ===",
+                    "CONNECTING TO LOCAL-WEATHER-NET...",
+                    "ACCESSING DOPPLER RADAR...",
+                    "INITIALIZING STORM TRACKER...",
+                    "",
+                    "Welcome to Weather Channel MUD (Multi-User Doppler)",
+                    "Type 'help' for available commands.",
+                    ""
+                ].join('\n');
+                this.print(welcome, 'system');
+                
+                // Get initial weather report from ChatGPT
+                this.callChatGPT("generate initial weather report").then(response => {
+                    this.print(response, 'success');
+                });
+            },
+
+            print(text, className = '') {
+                const line = document.createElement('div');
+                line.textContent = text;
+                if (className) line.className = className;
+                this.output.appendChild(line);
+                this.output.scrollTop = this.output.scrollHeight;
+            },
+
+            async typeWithDelay(text, className = '') {
+                const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+                for (let i = 0; i < text.length; i++) {
+                    const char = document.createElement('span');
+                    char.textContent = text[i];
+                    if (className) char.className = className;
+                    this.output.appendChild(char);
+                    this.output.scrollTop = this.output.scrollHeight;
+                    await delay(100); // Adjust typing speed here
+                }
+                this.print('', className); // New line
+            },
+
+            toggleOperatorMode() {
+                isOperatorMode = !isOperatorMode;
+                document.documentElement.setAttribute('data-theme', isOperatorMode ? 'inverted' : 'default');
+            },
+
+            async handleCommand(command) {
+                if (!command) return;
+                
+                this.print(`> ${command}`);
+                const cmd = command.toLowerCase();
+                
+                // Handle operator/terminal commands with error messages
+                if (cmd === 'operator') {
+                    if (isOperatorMode) {
+                        this.print("ERROR: Already connected to operator terminal.", 'error');
+                        return;
+                    }
+                    await this.typeWithDelay("Connecting...", 'system');
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    await this.typeWithDelay("Connecting...", 'system');
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    await this.typeWithDelay("Connecting...", 'system');
+                    this.toggleOperatorMode();
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                    // Updated prompt for Gary's initial greeting
+                    const greeting = await this.callChatGPT("Someone is interrupting your work and needs help. Respond with an annoyed initial greeting");
+                    this.print(greeting.toLowerCase(), 'system');
+                    return;
+                }
+
+                if (cmd === 'terminal') {
+                    if (!isOperatorMode) {
+                        this.print("ERROR: Already in main terminal.", 'error');
+                        return;
+                    }
+                    await this.typeWithDelay("Disconnecting...", 'system');
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    this.toggleOperatorMode();
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    this.print("SYSTEM RESTORED", 'success');
+                    return;
+                }
+
+                // Rest of command handling
+                switch(cmd) {
+                    case 'help':
+                        this.print([
+                            "Available commands:",
+                            "- help: Show this help message",
+                            "- clear: Clear the terminal",
+                            "- radar: Check local radar",
+                            "- forecast: Get weather forecast",
+                            "- status: System status",
+                            "- mute: Toggle background music",
+                            "- operator: Connect to Weather Operator",
+                            ...(isOperatorMode ? ["- terminal: Return to main system"] : []),
+                            "- games: List available games (COMING SOON)",
+                            "",
+                            "Or just chat with me about the weather! I love talking about... weather."
+                        ].join('\n'), 'system');
+                        break;
+
+                    case 'mute':
+                        if (backgroundMusic.paused) {
+                            backgroundMusic.play();
+                            this.print("Background music enabled.", 'system');
+                        } else {
+                            backgroundMusic.pause();
+                            this.print("Background music disabled.", 'system');
+                        }
+                        break;
+                        
+                    case 'clear':
+                        this.output.innerHTML = '';
+                        break;
+                        
+                    case 'radar':
+                        this.print([
+                            "ACCESSING DOPPLER 2000...",
+                            "No storms detected in your area.",
+                            "But I did find some interesting patterns in the upper atmosphere.",
+                            "Probably nothing to worry about.",
+                            "Definitely not an anomaly.",
+                            ""
+                        ].join('\n'), 'success');
+                        break;
+                        
+                    case 'status':
+                        this.print([
+                            "SYSTEM STATUS:",
+                            "- Mainframe: ONLINE",
+                            "- Doppler Radar: ACTIVE",
+                            "- Storm Tracker: SCANNING",
+                            "- Hidden Protocol: [REDACTED]",
+                            "- AOL Connection: 14.4k BLAZING FAST",
+                            "- Current Time: " + new Date().toLocaleTimeString(),
+                            ""
+                        ].join('\n'), 'system');
+                        break;
+                    
+                    default:
+                        if (isOperatorMode) {
+                            await new Promise(resolve => setTimeout(resolve, 3000));
+                            const response = await this.callChatGPT(command);
+                            this.print(response.toLowerCase(), 'system');
+                        } else {
+                            this.print("Accessing weather database...", 'system');
+                            try {
+                                const response = await this.callChatGPT(command);
+                                this.print(response, 'success');
+                            } catch (error) {
+                                this.print("ERROR: Connection interrupted. Someone's watching...", 'error');
+                                console.error(error);
+                            }
+                        }
+                }
+            },
+
+            async callChatGPT(message) {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message,
+                        isOperatorMode: isOperatorMode
+                    }),
+                });
+
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+
+                const data = await response.json();
+                return data.response;
+            }
+        };
+
+        terminal.init();
+    </script>
+</body>
+</html>
+
+
+
