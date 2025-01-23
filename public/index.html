@@ -239,8 +239,10 @@
                 this.print(welcome, 'system');
                 
                 // Get initial weather report from ChatGPT
-                this.callChatGPT("generate initial weather report").then(response => {
+                this.callChatGPT("generate a brief weather report under 12 words with temperature and current conditions").then(response => {
                     this.print(response, 'success');
+                }).catch(error => {
+                    console.error('Error getting initial weather:', error);
                 });
             },
 
