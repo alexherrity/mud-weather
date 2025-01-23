@@ -144,12 +144,19 @@
             body {
                 font-size: 24px;
                 padding: 10px;
-                padding-top: env(safe-area-inset-top);
+                padding-top: calc(env(safe-area-inset-top) + 10px);
             }
 
             #terminal {
                 height: calc(100vh - 20px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-                padding-bottom: 60px;
+                padding-bottom: 70px;
+            }
+
+            #output {
+                margin-bottom: 70px;
+                -webkit-overflow-scrolling: touch;
+                padding-top: 10px;
+                height: calc(100% - 70px);
             }
 
             .input-line {
@@ -160,12 +167,6 @@
                 background: var(--terminal-bg);
                 padding: 10px;
                 border-top: 1px solid var(--terminal-text);
-            }
-
-            #output {
-                margin-bottom: 60px;
-                -webkit-overflow-scrolling: touch;
-                padding-top: env(safe-area-inset-top);
             }
 
             #input {
