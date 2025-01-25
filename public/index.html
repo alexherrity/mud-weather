@@ -146,18 +146,21 @@
                 font-size: 24px;
                 padding: 10px;
                 padding-top: calc(env(safe-area-inset-top) + 10px);
+                height: -webkit-fill-available;
             }
 
             #terminal {
                 height: calc(100vh - 20px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-                padding-bottom: 70px;
+                max-height: -webkit-fill-available;
+                position: relative;
             }
 
             #output {
-                margin-bottom: 70px;
+                padding-bottom: 80px;
                 -webkit-overflow-scrolling: touch;
                 padding-top: 10px;
-                height: calc(100% - 70px);
+                height: 100%;
+                overflow-y: auto;
             }
 
             .input-line {
@@ -194,6 +197,10 @@
         backgroundMusic.volume = 0.025;  // Reduced to 2.5% (75% reduction from 0.1)
 
         let isOperatorMode = false;
+        let isSupervisorMode = false;
+        let isProcessing = false;
+        let operatorHistory = [];
+        let supervisorHistory = [];
 
         const terminal = {
             output: document.getElementById('output'),
@@ -222,6 +229,10 @@
 
                 this.input.addEventListener('keypress', (e) => {
                     if (e.key === 'Enter') {
+                        if (isProcessing) {
+                            e.preventDefault();
+                            return;
+                        }
                         this.handleCommand(this.input.value);
                         this.input.value = '';
                     }
@@ -273,117 +284,211 @@
             async handleCommand(command) {
                 if (!command) return;
                 
-                this.print(`> ${command}`);
-                const cmd = command.toLowerCase();
+                isProcessing = true;
                 
-                // Handle operator/terminal commands with error messages
-                if (cmd === 'operator') {
-                    if (isOperatorMode) {
-                        this.print("ERROR: Already connected to operator terminal.", 'error');
-                        return;
-                    }
-                    await this.typeWithDelay("Connecting...", 'system');
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                    await this.typeWithDelay("Connecting...", 'system');
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                    await this.typeWithDelay("Connecting...", 'system');
-                    this.toggleOperatorMode();
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                    
-                    const greeting = await this.callChatGPT("Someone is interrupting your work and needs help. Respond with an annoyed initial greeting");
-                    this.print(greeting.toLowerCase(), 'system');
-                    return;
-                }
+                try {
+                    this.print(`> ${command}`);
+                    const cmd = command.toLowerCase();
 
-                if (cmd === 'terminal') {
-                    if (!isOperatorMode) {
-                        this.print("ERROR: Already in main terminal.", 'error');
-                        return;
-                    }
-                    await this.typeWithDelay("Disconnecting...", 'system');
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                    this.toggleOperatorMode();
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                    this.print("SYSTEM RESTORED", 'success');
-                    return;
-                }
+                    // Handle special commands first
+                    switch(cmd) {
+                        case 'help':
+                            if (isOperatorMode || isSupervisorMode) {
+                                this.print([
+                                    "Available commands:",
+                                    "- help: Show this help message",
+                                    "- clear: Clear the terminal",
+                                    ...(isOperatorMode ? ["- supervisor: Connect to Operator's supervisor"] : []),
+                                    ...(isSupervisorMode ? ["- operator: Return to Weather Operator"] : []),
+                                    "- terminal: Return to main system",
+                                    ""
+                                ].join('\n'), 'system');
+                            } else {
+                                this.print([
+                                    "Available commands:",
+                                    "- help: Show this help message",
+                                    "- clear: Clear the terminal",
+                                    "- radar: Check local radar",
+                                    "- forecast: Get weather forecast",
+                                    "- status: System status",
+                                    "- mute: Toggle background music",
+                                    "- operator: Connect to Weather Operator",
+                                    "- games: List available games (COMING SOON)",
+                                    ""
+                                ].join('\n'), 'system');
+                            }
+                            break;
 
-                // Rest of command handling
-                switch(cmd) {
-                    case 'help':
-                        this.print([
-                            "Available commands:",
-                            "- help: Show this help message",
-                            "- clear: Clear the terminal",
-                            "- radar: Check local radar",
-                            "- forecast: Get weather forecast",
-                            "- status: System status",
-                            "- mute: Toggle background music",
-                            "- operator: Connect to Weather Operator",
-                            ...(isOperatorMode ? ["- terminal: Return to main system"] : []),
-                            "- games: List available games (COMING SOON)",
-                            "",
-                            "Or just use text input to ask questions."
-                        ].join('\n'), 'system');
-                        break;
+                        case 'clear':
+                            this.output.innerHTML = '';
+                            break;
 
-                    case 'mute':
-                        if (backgroundMusic.paused) {
-                            backgroundMusic.play();
-                            this.print("Background music enabled.", 'system');
-                        } else {
-                            backgroundMusic.pause();
-                            this.print("Background music disabled.", 'system');
-                        }
-                        break;
-                        
-                    case 'clear':
-                        this.output.innerHTML = '';
-                        break;
-                        
-                    case 'radar':
-                        this.print([
-                            "ACCESSING DOPPLER 2000...",
-                            "No storms detected in your area.",
-                            "But I did find some interesting patterns in the upper atmosphere.",
-                            "Probably nothing to worry about.",
-                            "Definitely not an anomaly.",
-                            ""
-                        ].join('\n'), 'success');
-                        break;
-                        
-                    case 'status':
-                        this.print([
-                            "SYSTEM STATUS:",
-                            "- Mainframe: ONLINE",
-                            "- Doppler Radar: ACTIVE",
-                            "- Storm Tracker: SCANNING",
-                            "- Hidden Protocol: [REDACTED]",
-                            "- AOL Connection: 14.4k BLAZING FAST",
-                            "- Current Time: " + new Date().toLocaleTimeString(),
-                            ""
-                        ].join('\n'), 'system');
-                        break;
-                    
-                    default:
-                        if (isOperatorMode) {
-                            await new Promise(resolve => setTimeout(resolve, 3000));
-                            const response = await this.callChatGPT(command);
-                            this.print(response.toLowerCase(), 'system');
-                        } else {
-                            this.print("Accessing weather database...", 'system');
+                        case 'radar':
+                        case 'forecast':
+                        case 'status':
+                        case 'mute':
+                        case 'games':
+                            if (isOperatorMode || isSupervisorMode) {
+                                this.print("ERROR: Please return to Terminal to use this command.", 'error');
+                                return;
+                            }
+                            
+                            switch(cmd) {
+                                case 'radar':
+                                    this.print("ACCESSING DOPPLER RADAR...", 'system');
+                                    try {
+                                        const response = await this.callChatGPT("Generate a brief radar report. Mention precipitation and movement patterns.");
+                                        this.print(response, 'success');
+                                    } catch (error) {
+                                        console.error('Error:', error);
+                                        this.print("ERROR: Connection interrupted. Someone's watching...", 'error');
+                                    }
+                                    break;
+
+                                case 'forecast':
+                                    this.print("GENERATING FORECAST...", 'system');
+                                    try {
+                                        const response = await this.callChatGPT("Generate a weather forecast. Include temperature and conditions.");
+                                        this.print(response, 'success');
+                                    } catch (error) {
+                                        console.error('Error:', error);
+                                        this.print("ERROR: Connection interrupted. Someone's watching...", 'error');
+                                    }
+                                    break;
+
+                                case 'status':
+                                    this.print([
+                                        "=== SYSTEM STATUS ===",
+                                        "Connection: ACTIVE",
+                                        "Signal: STRONG",
+                                        "Doppler: ONLINE",
+                                        "Satellites: 4/4",
+                                        "Database: CONNECTED",
+                                        "===================",
+                                    ].join('\n'), 'success');
+                                    break;
+
+                                case 'mute':
+                                    if (backgroundMusic.paused) {
+                                        backgroundMusic.play();
+                                        this.print("Background music enabled.", 'success');
+                                    } else {
+                                        backgroundMusic.pause();
+                                        this.print("Background music disabled.", 'success');
+                                    }
+                                    break;
+
+                                case 'games':
+                                    this.print("COMING SOON", 'system');
+                                    break;
+                            }
+                            break;
+
+                        case 'operator':
+                            if (isOperatorMode) {
+                                this.print("ERROR: Already connected to operator terminal.", 'error');
+                                return;
+                            }
+                            await this.typeWithDelay("Connecting...", 'system');
+                            await new Promise(resolve => setTimeout(resolve, 1000));
+                            await this.typeWithDelay("Connecting...", 'system');
+                            await new Promise(resolve => setTimeout(resolve, 1000));
+                            await this.typeWithDelay("Connecting...", 'system');
+                            this.toggleOperatorMode();
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                            
                             try {
+                                const greeting = await this.callChatGPT("Someone is interrupting your work and needs help. Respond with an annoyed initial greeting");
+                                this.print(greeting.toLowerCase(), 'system');
+                            } catch (error) {
+                                console.error('Error:', error);
+                                this.print("ERROR: Connection interrupted. Someone's watching...", 'error');
+                            }
+                            break;
+
+                        case 'supervisor':
+                            if (!isOperatorMode) {
+                                this.print("ERROR: Must be connected to operator first.", 'error');
+                                return;
+                            }
+                            if (isSupervisorMode) {
+                                this.print("ERROR: Already connected to supervisor.", 'error');
+                                return;
+                            }
+                            
+                            try {
+                                const garyResponse = await this.callChatGPT("Someone wants to speak to your supervisor Jeanine. Respond with annoyance.");
+                                this.print(garyResponse.toLowerCase(), 'system');
+                                
+                                await new Promise(resolve => setTimeout(resolve, 2000));
+                                
+                                await this.typeWithDelay("Connecting...", 'system');
+                                await new Promise(resolve => setTimeout(resolve, 1000));
+                                await this.typeWithDelay("Connecting...", 'system');
+                                await new Promise(resolve => setTimeout(resolve, 1000));
+                                await this.typeWithDelay("Connecting...", 'system');
+                                
+                                isOperatorMode = false;
+                                isSupervisorMode = true;
+                                document.documentElement.setAttribute('data-theme', 'inverted');
+                                
+                                const greeting = await this.callChatGPT("You are Jeanine, Gary's supervisor. Greet the user professionally.");
+                                this.print(greeting, 'system');
+                            } catch (error) {
+                                console.error('Error:', error);
+                                this.print("ERROR: Connection interrupted. Someone's watching...", 'error');
+                            }
+                            break;
+
+                        case 'terminal':
+                            if (!isOperatorMode && !isSupervisorMode) {
+                                this.print("ERROR: Already in main terminal.", 'error');
+                                return;
+                            }
+                            await this.typeWithDelay("Disconnecting...", 'system');
+                            await new Promise(resolve => setTimeout(resolve, 1000));
+                            
+                            isOperatorMode = false;
+                            isSupervisorMode = false;
+                            operatorHistory = [];
+                            supervisorHistory = [];
+                            
+                            document.documentElement.setAttribute('data-theme', 'default');
+                            backgroundMusic.volume = 0.025;
+                            
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                            this.print("SYSTEM RESTORED", 'success');
+                            break;
+
+                        default:
+                            if (isOperatorMode) {
+                                const response = await this.callChatGPT(command);
+                                this.print(response.toLowerCase(), 'system');
+                            } else if (isSupervisorMode) {
+                                const response = await this.callChatGPT(command);
+                                this.print(response, 'system');
+                            } else {
+                                this.print("Accessing weather database...", 'system');
                                 const response = await this.callChatGPT(command);
                                 this.print(response, 'success');
-                            } catch (error) {
-                                this.print("ERROR: Connection interrupted. Someone's watching...", 'error');
-                                console.error(error);
                             }
-                        }
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    this.print('An error occurred while processing your command.', 'error');
+                } finally {
+                    isProcessing = false;
                 }
             },
 
             async callChatGPT(message) {
+                // Add message to appropriate history
+                if (isOperatorMode) {
+                    operatorHistory.push({ role: 'user', content: message });
+                } else if (isSupervisorMode) {
+                    supervisorHistory.push({ role: 'user', content: message });
+                }
+
                 const response = await fetch('/api/chat', {
                     method: 'POST',
                     headers: {
@@ -391,7 +496,11 @@
                     },
                     body: JSON.stringify({
                         message,
-                        isOperatorMode: isOperatorMode
+                        isOperatorMode,
+                        isSupervisorMode,
+                        history: isOperatorMode ? operatorHistory : 
+                                isSupervisorMode ? supervisorHistory : 
+                                []
                     }),
                 });
 
@@ -400,6 +509,14 @@
                 }
 
                 const data = await response.json();
+                
+                // Add AI response to history
+                if (isOperatorMode) {
+                    operatorHistory.push({ role: 'assistant', content: data.response });
+                } else if (isSupervisorMode) {
+                    supervisorHistory.push({ role: 'assistant', content: data.response });
+                }
+
                 return data.response;
             },
 
