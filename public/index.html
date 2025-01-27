@@ -311,6 +311,7 @@
                                     "- radar: Check local radar",
                                     "- forecast: Get weather forecast",
                                     "- status: System status",
+                                    "- time: Display current system time",
                                     "- mute: Toggle background music",
                                     "- operator: Connect to Weather Operator",
                                     "- games: List available games (COMING SOON)",
@@ -471,6 +472,14 @@
                             this.print("SYSTEM RESTORED", 'success');
                             break;
 
+                        case 'time':
+                            if (isOperatorMode || isSupervisorMode) {
+                                this.print("ERROR: Please return to Terminal to use this command.", 'error');
+                                return;
+                            }
+                            this.print(`SYSTEM TIME: ${get1995DateTime()}`, 'success');
+                            break;
+
                         default:
                             if (isOperatorMode) {
                                 const response = await this.callChatGPT(command);
@@ -542,6 +551,37 @@
 
         // Initialize terminal
         terminal.init();
+
+        // Add this helper function near the top with other functions
+        function get1995DateTime() {
+            const now = new Date();
+            const date1995 = new Date(
+                now.getFullYear() - 30,
+                now.getMonth(),
+                now.getDate(),
+                now.getHours(),
+                now.getMinutes()
+            );
+            
+            // Convert to Eastern Time
+            const easternTime = date1995.toLocaleString('en-US', {
+                timeZone: 'America/New_York',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+            });
+            
+            // Determine if it's EDT or EST
+            const isEDT = date1995.toLocaleString('en-US', {
+                timeZone: 'America/New_York',
+                timeZoneName: 'short'
+            }).includes('EDT');
+            
+            return `${easternTime} ${isEDT ? 'EDT' : 'EST'}`;
+        }
     </script>
 </body>
 </html>
