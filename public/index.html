@@ -337,7 +337,14 @@
                                 case 'radar':
                                     this.print("ACCESSING DOPPLER RADAR...", 'system');
                                     try {
-                                        const response = await this.callChatGPT("Generate a brief radar report. Mention precipitation and movement patterns.");
+                                        const response = await this.callChatGPT(
+                                            "Generate two things: 1) A historically accurate radar report for an obscure American town (population under 5,000) " +
+                                            "from this exact date and time in 1995. Mention precipitation and movement patterns. " +
+                                            "Include the town name and state. Keep response under 25 words. " +
+                                            "2) Below that, create an ASCII art radar display showing the described weather pattern. " +
+                                            "Use these symbols: '.' for clear, ',' for light precip, '*' for heavy precip, '>' for storm movement. " +
+                                            "Make it circular, about 15 lines tall. Label N,S,E,W. Match the weather description above."
+                                        );
                                         this.print(response, 'success');
                                     } catch (error) {
                                         console.error('Error:', error);
@@ -348,7 +355,11 @@
                                 case 'forecast':
                                     this.print("GENERATING FORECAST...", 'system');
                                     try {
-                                        const response = await this.callChatGPT("Generate a weather forecast. Include temperature and conditions.");
+                                        const response = await this.callChatGPT(
+                                            "Generate a historically accurate weather forecast for an obscure American town (population under 5,000) " +
+                                            "from this exact date and time in 1995. Include temperature, conditions, and 24-hour outlook. " +
+                                            "Include the town name and state. Keep response under 25 words."
+                                        );
                                         this.print(response, 'success');
                                     } catch (error) {
                                         console.error('Error:', error);
