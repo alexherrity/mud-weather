@@ -2,9 +2,9 @@ const express = require('express');
 const OpenAI = require('openai');
 require('dotenv').config();
 
-// Add this check
-if (!process.env.OPENAI_API_KEY) {
-    console.error('No OpenAI API key found in environment variables');
+// Add this check for both API keys
+if (!process.env.OPENAI_API_KEY || !process.env.DEEPSEEK_API_KEY) {
+    console.error('Missing required API keys in environment variables');
     process.exit(1);
 }
 
@@ -21,9 +21,15 @@ const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
-// Set up OpenAI
+// Set up OpenAI client
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
+});
+
+// Set up DeepSeek client
+const deepseek = new OpenAI({
+    baseURL: 'https://api.deepseek.com',
+    apiKey: process.env.DEEPSEEK_API_KEY
 });
 
 // Add this helper function at the top level
@@ -75,8 +81,12 @@ app.post('/api/chat', async (req, res) => {
             { role: 'user', content: message }
         ];
 
-        const completion = await openai.chat.completions.create({
-            model: "gpt-3.5-turbo",
+        // Use DeepSeek for supervisor, OpenAI for others
+        const client = isSupervisorMode ? deepseek : openai;
+        const model = isSupervisorMode ? "deepseek-chat" : "gpt-3.5-turbo";
+
+        const completion = await client.chat.completions.create({
+            model: model,
             messages: messages,
             temperature: 0.7,
             max_tokens: 150
